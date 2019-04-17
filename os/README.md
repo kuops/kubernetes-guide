@@ -12,6 +12,6 @@
 在使用这些系统编写 Dockerfile 时需要熟悉包管理器：
 
 * Centos
-** rpm
-** yum
+  * rpm
+  * yum
 
