@@ -50,6 +50,7 @@ yum -y install docker-2:1.13.1-94.gitb2f74b2.el7.centos
 
 ```text
 yum list installed
+rpm -qa
 ```
 
 降级版本:
@@ -81,6 +82,7 @@ yum autoremove
 
 ```text
 yum provides /etc/passwd
+rpm -qf /etc/passwd
 ```
 
 yum 安装时启用禁用仓库

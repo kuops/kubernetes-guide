@@ -41,6 +41,12 @@ apt-get upgrade -y
 apt-cache pkgnames
 ```
 
+模拟安装，`dry-run`:
+
+```text
+apt-get install -s nginx 
+```
+
 安装软件包:
 
 ```text
@@ -50,8 +56,35 @@ apt-get install nginx -y
 查看已安装软件包:
 
 ```text
+apt list --installed
 dpkg -l
 ```
 
-{% page-ref page="centos.md" %}
+删除软件包:
+
+```text
+#保留已修改过的配置文件
+apt-get remove nginx
+#不保留配置文件
+apt-get purge nginx
+```
+
+删除非必要软件包:
+
+```text
+apt-get autoremove
+```
+
+查找软件包:
+
+```text
+apt-cache search nginx
+```
+
+查看可用软件包:
+
+```text
+apt-cache madison nginx
+apt-cache policy nginx
+```
 
