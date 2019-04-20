@@ -54,7 +54,7 @@ apk info --who-owns /etc/passwd
 apk -L info apk-tools
 ```
 
-包是已安装的包
+软件包是否已安装:
 
 ```text
 apk -e info
