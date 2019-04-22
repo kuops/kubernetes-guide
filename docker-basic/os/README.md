@@ -1,7 +1,5 @@
 # 软件包管理
 
-kubernetes  一般运行的操作系统的选择是 Linux , 推荐的发行版为 `Ubuntu` , `centos` 。
-
 在 Docker 中常用的发行版为:
 
 * Alpine
