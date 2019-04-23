@@ -85,6 +85,12 @@ yum provides /etc/passwd
 rpm -qf /etc/passwd
 ```
 
+查看包的依赖项:
+
+```text
+yum deplist curl
+```
+
 yum 安装时启用禁用仓库
 
 ```text
