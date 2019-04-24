@@ -4,14 +4,15 @@
 
 在类 Unix 操作系统中，根目录\(root directory\) `/` 是顶级目录，所有文件系统的路径都是从跟 `/` 开始，使用 Chroot 可以更改进程及子进程识别到的根目录 `/` 改为其他目录。
 
-开始一个 chroot 例子,创建一个只有 bash 和 ls 的目录：
+这里我们通过 [sig-cloud-instance-build](https://github.com/CentOS/sig-cloud-instance-build.git) \(centos 的构建仓库\) 来生成一个最小化的 rootfs ，在以下示例中会用到：
 
 ```text
-mkdir -p test/{bin,lib64}
-cp $(which --skip-alias ls) test/bin
-cp $(which --skip-alias bash) test/bin
-ldd $(which --skip-alias ls)|grep -Po '/lib64/\S+'|xargs -i cp {} test/lib64
-ldd $(which --skip-alias bash)|grep -Po '/lib64/\S+'|xargs -i cp {} test/lib64
+yum -y install libvirt-python lorax libvirt
+systemctl start libvirtd
+mkdir test && cd test
+curl -LO https://mirrors.aliyun.com/centos/7/os/x86_64/images/boot.iso
+curl -LO https://raw.githubusercontent.com/CentOS/sig-cloud-instance-build/master/docker/centos-7-x86_64.ks
+livemedia-creator --make-tar --iso=./boot.iso --ks=./centos-7-x86_64.ks --image-name=centos-7-docker.tar.xz
 ```
 
 切换到该目录，发现改根目录已经更改：
@@ -63,4 +64,6 @@ lrwxrwxrwx 1 root root 0 Apr 23 10:55 uts -> uts:[4026531838]
 * PID Namespace： 提供基于进程的隔离能力。进程隔离使得容器中的首个进程成为所在命名空间中的 PID 为 1 的进程。在 Linux 系统中， PID 为 1 的进程非常特殊，它作为所有进程的父进程，有很多特权，如，屏蔽信号，托管孤儿进程等。一个比较直观的现象是，当系统中的某个子进程脱离了父进程（例如父进程意外结束），那么它的父进程就会自动成为系统的根父进程。此外，当系统中的根父进程退出时，所有属于同一命名空间的进程都会被杀死。
 * User Namespace：提供基于系统用户的隔离能力。系统用户隔离是指同一系统用户在不同命名空间中拥有不同的 UID （用户标识） 和 GID （组标识）。他们之间存在一定的映射关系。因此在特定的命名空间中 UID 为 0 并不表示该用用拥有整个系统的管理员 root 用户的权限。这一特性限制了容器的用户权限，有利于保护主机系统的安全。
 * UTS Namespace： 提供基于主机名的隔离能力。在每个独立的命名空间中，程序都可以有不同的主机名称信息。值得一提的时，主机名只是一个用于标识容器空间的代号，允许重复。
+
+
 
