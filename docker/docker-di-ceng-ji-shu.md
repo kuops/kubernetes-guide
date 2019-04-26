@@ -1,6 +1,6 @@
 # Docker 底层技术
 
-### chroot
+## chroot
 
 在类 Unix 操作系统中，根目录\(root directory\) `/` 是顶级目录，所有文件系统的路径都是从跟 `/` 开始，使用 Chroot 可以更改进程及子进程识别到的根目录 `/` 改为其他目录。
 
@@ -66,9 +66,9 @@ lrwxrwxrwx 1 root root 0 Apr 23 11:28 /proc/22966/root -> /home/kuops/test
 rpm -qa|grep httpd
 ```
 
-### Namespace
+## Namespace
 
- Linux 的进程都是单一树状结构，所有的进程都是从 `init` 进程开始，通常特权进程可以跟踪或杀死其他的普通进程。Linux 的 NameSpace 将分出多个 `subtree` 子树结构，将进程隔离开来。
+Linux 的进程都是单一树状结构，所有的进程都是从 `init` 进程开始，通常特权进程可以跟踪或杀死其他的普通进程。Linux 的 NameSpace 将分出多个 `subtree` 子树结构，将进程隔离开来。
 
 ```bash
 # 通过 /proc/pid/ns 
@@ -140,7 +140,7 @@ ip address show
     link/ipip 0.0.0.0 brd 0.0.0.0
 ```
 
-### CGroup
+## CGroup
 
 CGroup 是 Linux 内核提供的一种可以限制，记录，隔离一组进程所使用的物理资源的机制（包括 CPU , 内存，磁盘 I/O 速度）机制。
 
@@ -164,11 +164,15 @@ CGroup 最初设计出来是为了统一 Linux 下资源管理工具，比如限
 7:freezer:/
 # 用于标记每个网络包，并控制网卡优先级
 6:net_cls,net_prio:/
-# 
+# 允许使用 perf 工具来监控 cgroup；
 5:perf_event:/
+# 限制 RDMA/IB 特定资源，rdma 可以让本机直接存取远程主机的内存资源
 4:rdma:/
+# 允许使用大篇幅的虚拟内存页，并且给这些内存页强制设定可用资源量。
 3:hugetlb:/
+# 用于限制进程对 CPU 的用量，并生成每个进程所使用的 CPU 报告。
 2:cpu,cpuacct:/
+# 由 systemd 创建的这些 cgroup
 1:name=systemd:/
 ```
 

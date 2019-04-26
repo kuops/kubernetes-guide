@@ -60,5 +60,3 @@ apk -L info apk-tools
 apk -e info
 ```
 
-
-

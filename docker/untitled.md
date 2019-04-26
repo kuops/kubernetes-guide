@@ -39,5 +39,3 @@ COPY --from=builder /code/examples/app .
 CMD ["./app"]
 ```
 
-
-

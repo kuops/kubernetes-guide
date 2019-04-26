@@ -6,7 +6,7 @@
 docker run --rm -it centos:7
 ```
 
-虽然  centos 镜像中自带了 fastestmirror 插件，但是一般还是会选择到国外，这里使用阿里云镜像，并添加 epel 源:
+虽然 centos 镜像中自带了 fastestmirror 插件，但是一般还是会选择到国外，这里使用阿里云镜像，并添加 epel 源:
 
 ```text
 curl -o /etc/yum.repos.d/CentOS-Base.repo http://mirrors.aliyun.com/repo/Centos-7.repo

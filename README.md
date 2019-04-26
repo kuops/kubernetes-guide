@@ -1,6 +1,4 @@
 # kubernetes-guide
 
-学习 kubernetes 指南 
-
-
+学习 kubernetes 指南
 

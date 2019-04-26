@@ -3,7 +3,7 @@
 可以启动一个临时镜像跟着练习以下命令:
 
 ```text
-docker run --rm -it debian:9-slim 
+docker run --rm -it debian:9-slim
 ```
 
 debian 替换源:
@@ -44,7 +44,7 @@ apt-cache pkgnames
 模拟安装，`dry-run`:
 
 ```text
-apt-get install -s nginx 
+apt-get install -s nginx
 ```
 
 安装软件包:
