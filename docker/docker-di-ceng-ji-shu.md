@@ -144,7 +144,7 @@ ip address show
 
 CGroup 是 Linux 内核提供的一种可以限制，记录，隔离一组进程所使用的物理资源的机制（包括 CPU , 内存，磁盘 I/O 速度）机制。
 
-CGroup 最初设计出来是为了统一 Linux 下资源管理工具，比如限制 CPU 时使用的 `renice` 和 `cpulimit` 命令，限制内存要用 ulimit 或者 PAM \(pluggable Authentication Modules\),而限制磁盘 I/O 又需要其他工具。CGroup 是一种内核级的限制手段，比其他的要的功能和效率方便好得多。CGroup 在 systemd 的 service 文件定义中 `MemoryLimit`,`BlockIOWeight` 等配置其实就是在间接的为进程配置 CGroup。
+CGroup 最初设计出来是为了统一 Linux 下资源管理工具，比如限制 CPU 时使用的 `renice` 和 `cpulimit` 命令，限制内存要用 ulimit 或者 PAM \(pluggable Authentication Modules\),而限制磁盘 I/O 又需要其他工具。CGroup 是一种内核级的限制手段，比其他的要的功能和效率方便好得多。CGroup 在 systemd 的 service 文件定义中 `MemoryLimit`,`BlockIOWeight` 等配置其实就是在间接的为进程配置 CGroup。 有兴趣的也可以看一下 [redhat官方文档](https://access.redhat.com/documentation/zh-cn/red_hat_enterprise_linux/7/html/resource_management_guide/index)
 
 在 /proc 的文件系统中，每个进程下都有一个 cgroup 文件，与 namespace 类似，觉到多数都一样，共用同一的 namespace：
 
@@ -196,4 +196,54 @@ cgroup /sys/fs/cgroup/devices cgroup rw,nosuid,nodev,noexec,relatime,devices 0 0
 ```
 
 这里每个挂载点都是一个 CGroup 子系统的根目录，例如 `cpuset:/` 对应的根目录其实是 `/sys/fs/cgroup/cpuset`,其他的以此类推。
+
+我们在 cpu 的 cgroup 中新建一个目录，并且把上线调整到 50% ：
+
+```text
+cd /sys/fs/cgroup/cpu
+mkdir cpu50
+echo 50000 > /sys/fs/cgroup/cpu/cpu50/cpu.cfs_quota_us
+```
+
+启动测试进程：
+
+```text
+stress --cpu 1 --timeout 360s 
+```
+
+查看运行情况, fork 出的子进程 cpu 使用率为 100%
+
+```text
+# ps aux --sort=-%cpu|head -2
+USER       PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
+root      8577  105  0.0   7272   100 pts/0    R+   17:38   0:09 stress --cpu 1 --timeout 360s
+```
+
+将改任务 pid 写入 cpu50 的 tasks：
+
+```text
+echo 8577 > /sys/fs/cgroup/cpu/cpu50/tasks
+```
+
+使用 top 或 ps aux 观察，因为计算方式的不同 ps aux 可能得等一段时间才能看到的和 top 一致
+
+```text
+# ps aux --sort=-%cpu|head -2
+USER       PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
+root      8577 55.0  0.0   7272   100 pts/0    R+   17:38   3:24 stress --cpu 1 --timeout 3600s
+```
+
+清理:
+
+```text
+rmdir /sys/fs/cgroup/cpu/cpu50
+```
+
+> 扩展资料:
+>
+>  [使用 namespace 和  cgroup 在 linux 中创建 sandbox](https://blogs.rdoproject.org/2015/08/hands-on-linux-sandbox-with-namespaces-and-cgroups)
+
+### overlayFS
+
+
 
