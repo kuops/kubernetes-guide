@@ -243,7 +243,122 @@ rmdir /sys/fs/cgroup/cpu/cpu50
 >
 >  [使用 namespace 和  cgroup 在 linux 中创建 sandbox](https://blogs.rdoproject.org/2015/08/hands-on-linux-sandbox-with-namespaces-and-cgroups)
 
-### overlayFS
+## OverlayFS
+
+OverlayFS 是一个面向 Linux 的文件系统服务，可以在其他文件系统之上的多个目录合并成一个目录。它于2014年被合并到 Linux 内核的 3.18 版本。
+
+下图显示了 Docker 镜像和 Docker 容器的分层方式。镜像层是`lowerdir`，容器层是 `upperdir`。统一视图通过一个被称为`merged`容器挂载点的目录公开。该图显示了 Docker 如何构造映射到 OverlayFS 结构。
+
+![](../.gitbook/assets/image%20%281%29.png)
+
+我们来实现一个最简单的 overlayfs
+
+```text
+mkdir -p /tmp/{lower,upper,workdir,overlay}
+mount -t overlay -o \
+lowerdir=/tmp/lower,\
+upperdir=/tmp/upper,\
+workdir=/tmp/workdir \
+none /tmp/overlay
+```
+
+在 lower 或 uppper 中创建文件时，它们将显示在 overlay 文件夹中：
+
+```text
+touch /tmp/lower/1.txt
+touch /tmp/upper/2.txt
+# ls -l /tmp/overlay
+总用量 0
+-rw-rw-r-- 1 root root 0 5月  13 15:33 1.txt
+-rw-rw-r-- 1 root root 0 5月  13 15:34 2.txt
+```
+
+在 overlay 文件夹中创建的文件，都只会在上层文件夹 upper 中：
+
+```text
+touch /tmp/overlay/3.txt
+# ls -l /tmp/overlay
+total 0
+-rw-r--r-- 1 root root 0 May 13 15:52 1.txt
+-rw-r--r-- 1 root root 0 May 13 15:52 2.txt
+-rw-r--r-- 1 root root 0 May 13 15:53 3.txt
+```
+
+在 overlay 文件夹中对所有的文件的修改，都只会同步到上层文件夹中:
+
+```text
+echo "111" > /tmp/overlay/1.txt
+# cat /tmp/upper/1.txt
+111
+# lower 文件夹中的文件并没有发生改变
+cat /tmp/lower/1.txt
+```
+
+如果你在 overlay 文件夹中删除了 lower 层中存在的文件，他将会在 upper 层中创建一个 `whiteout` 文件，但是 lower 层中的文件依然存在，不会被删除：
+
+```text
+rm -f /tmp/overlay/1.txt
+# 1.txt 会变成一个 whiteout 文件
+# ls -l /tmp/upper/1.txt
+c--------- 1 root root 0, 0 May 13 19:03 /tmp/upper/1.txt
+# ls -l /tmp/lower/1.txt
+-rw-r--r-- 1 root root 0 May 13 15:52 /tmp/lower/1.txt
+```
+
+
+
+我们拉取一个 docker 的 ubuntu 镜像查看,镜像相关文件存储在 overlay2目录中:
+
+```text
+# docker pull ubuntu
+Using default tag: latest
+latest: Pulling from library/ubuntu
+f476d66f5408: Pull complete
+8882c27f669e: Pull complete
+d9af21273955: Pull complete
+f5029279ec12: Pull complete
+Digest: sha256:70fc21e832af32eeec9b0161a805c08f6dddf64d341748379de9a527c01b6ca1
+Status: Downloaded newer image for ubuntu:latest
+
+# docker image inspect ubuntu  -f "{{ json .GraphDriver }}" |jq
+{
+  "Data": {
+    "LowerDir": "/var/lib/docker/overlay2/45f4cebfdbbbbaf4cbfa81de1a72f10a29b732479b3859717b5c7c49214367a2/diff:/var/lib/docker/overlay2/268b94fec0e724776b5dc449536168d21efd4ffd28245466ac598a935133a8fd/diff:/var/lib/docker/overlay2/bfe06b7c25eb27300599cc04878c0414bc2924fed0d84e22eccbaaa40f814011/diff",
+    "MergedDir": "/var/lib/docker/overlay2/d0f7f0a0a42b0f2e8a9c05d9209239ae41de1645e57671c63b640499ab86f71f/merged",
+    "UpperDir": "/var/lib/docker/overlay2/d0f7f0a0a42b0f2e8a9c05d9209239ae41de1645e57671c63b640499ab86f71f/diff",
+    "WorkDir": "/var/lib/docker/overlay2/d0f7f0a0a42b0f2e8a9c05d9209239ae41de1645e57671c63b640499ab86f71f/work"
+  },
+  "Name": "overlay2"
+}
+```
+
+我们运行一个容器查看是如何进行挂载的：
+
+```text
+docker run --rm  -dit --name=test ubuntu
+
+# mount|grep overlay
+overlay on /var/lib/docker/overlay2/a08439128edc4bccf9fa34c32970aa1e8e9a4a467abed6655fd134e37a02cb9d/merged 
+    type overlay (
+        rw,
+        relatime,
+        lowerdir=/var/lib/docker/overlay2/l/NZ4QDBO7KYWWHV45D4WQDLSSPW:/var/lib/docker/overlay2/l/VSHANPJYLBDAD62H3ZEJPXDNYN:/var/lib/docker/overlay2/l/J4I7OG363EAB2NK3GFADRBRBRB:/var/lib/docker/overlay2/l/B4Y2BQPES2LFSS6CQ3DZ4WTDOZ:/var/lib/docker/overlay2/l/SLXCGMZY6WWTFWLOZH6XE447RE,
+        upperdir=/var/lib/docker/overlay2/a08439128edc4bccf9fa34c32970aa1e8e9a4a467abed6655fd134e37a02cb9d/diff,
+        workdir=/var/lib/docker/overlay2/a08439128edc4bccf9fa34c32970aa1e8e9a4a467abed6655fd134e37a02cb9d/work
+    )
+    
+# ls -l /var/lib/docker/overlay2/l/{NZ4QDBO7KYWWHV45D4WQDLSSPW,VSHANPJYLBDAD62H3ZEJPXDNYN,J4I7OG363EAB2NK3GFADRBRBRB,B4Y2BQPES2LFSS6CQ3DZ4WTDOZ,SLXCGMZY6WWTFWLOZH6XE447RE}
+lrwxrwxrwx 1 root root 72 May 14 11:18 /var/lib/docker/overlay2/l/B4Y2BQPES2LFSS6CQ3DZ4WTDOZ -> ../268b94fec0e724776b5dc449536168d21efd4ffd28245466ac598a935133a8fd/diff
+lrwxrwxrwx 1 root root 72 May 14 11:18 /var/lib/docker/overlay2/l/J4I7OG363EAB2NK3GFADRBRBRB -> ../45f4cebfdbbbbaf4cbfa81de1a72f10a29b732479b3859717b5c7c49214367a2/diff
+lrwxrwxrwx 1 root root 77 May 14 11:23 /var/lib/docker/overlay2/l/NZ4QDBO7KYWWHV45D4WQDLSSPW -> ../a08439128edc4bccf9fa34c32970aa1e8e9a4a467abed6655fd134e37a02cb9d-init/diff
+lrwxrwxrwx 1 root root 72 May 14 11:18 /var/lib/docker/overlay2/l/SLXCGMZY6WWTFWLOZH6XE447RE -> ../bfe06b7c25eb27300599cc04878c0414bc2924fed0d84e22eccbaaa40f814011/diff
+lrwxrwxrwx 1 root root 72 May 14 11:18 /var/lib/docker/overlay2/l/VSHANPJYLBDAD62H3ZEJPXDNYN -> ../d0f7f0a0a42b0f2e8a9c05d9209239ae41de1645e57671c63b640499ab86f71f/diff
+```
+
+* merged 作为挂载的目录使用
+* lowerdir 是镜像的 lowerdir + upperdir  , 容器初始化目录 容器层id-init 
+* upperdir 是 容器层 id/diff
+* mergedir 是容器最终的挂载的目录
 
 
 
