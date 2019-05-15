@@ -1,4 +1,4 @@
-# Docker 底层技术
+# Docker 原理简介
 
 ## chroot
 
@@ -360,5 +360,109 @@ lrwxrwxrwx 1 root root 72 May 14 11:18 /var/lib/docker/overlay2/l/VSHANPJYLBDAD6
 * upperdir 是 容器层 id/diff
 * mergedir 是容器最终的挂载的目录
 
+我们创建一个 nginx 镜像来再次验证：
 
+```text
+mkdir -p test
+
+cat <<EOF> test/Dockerfile
+FROM centos
+
+RUN curl -o /etc/yum.repos.d/CentOS-Base.repo http://mirrors.aliyun.com/repo/Centos-7.repo \
+    && curl -o /etc/yum.repos.d/epel.repo http://mirrors.aliyun.com/repo/epel-7.repo \
+    && yum -y install nginx \
+    && yum clean all
+
+RUN ln -sf /dev/stdout /var/log/nginx/access.log \
+	&& ln -sf /dev/stderr /var/log/nginx/error.log
+
+STOPSIGNAL SIGTERM
+
+CMD ["nginx", "-g", "daemon off;"]
+EOF
+
+docker build -t mynginx -f=test/Dockerfile  test
+
+```
+
+查看镜像的层：
+
+```text
+# docker inspect mynginx:latest --format '{{ json .GraphDriver }}'|jq
+{
+  "Data": {
+    "LowerDir": "/var/lib/docker/overlay2/8db3efe8fbecdacf462e103bfd88f086898aaad83dae0de12931575e58817dd8/diff:/var/lib/docker/overlay2/7087a79470ba2efd8dc9ccc25b9f3e5afa2c78bfb350c7db65a430e007699802/diff",
+    "MergedDir": "/var/lib/docker/overlay2/a31bc744ad4a2f3a15e0d267f5b58ea270e270ae639cf937ba3e5e92bdb2cd13/merged",
+    "UpperDir": "/var/lib/docker/overlay2/a31bc744ad4a2f3a15e0d267f5b58ea270e270ae639cf937ba3e5e92bdb2cd13/diff",
+    "WorkDir": "/var/lib/docker/overlay2/a31bc744ad4a2f3a15e0d267f5b58ea270e270ae639cf937ba3e5e92bdb2cd13/work"
+  },
+  "Name": "overlay2"
+}
+
+# 这是是 centos 基础镜像层 FROM centos
+# ls -l /var/lib/docker/overlay2/7087a79470ba2efd8dc9ccc25b9f3e5afa2c78bfb350c7db65a430e007699802/diff/
+total 68
+-rw-r--r--  1 root root 12082 Mar  6 01:36 anaconda-post.log
+lrwxrwxrwx  1 root root     7 Mar  6 01:34 bin -> usr/bin
+drwxr-xr-x  2 root root  4096 Mar  6 01:34 dev
+drwxr-xr-x 47 root root  4096 Mar  6 01:36 etc
+drwxr-xr-x  2 root root  4096 Apr 11  2018 home
+lrwxrwxrwx  1 root root     7 Mar  6 01:34 lib -> usr/lib
+lrwxrwxrwx  1 root root     9 Mar  6 01:34 lib64 -> usr/lib64
+drwxr-xr-x  2 root root  4096 Apr 11  2018 media
+drwxr-xr-x  2 root root  4096 Apr 11  2018 mnt
+drwxr-xr-x  2 root root  4096 Apr 11  2018 opt
+drwxr-xr-x  2 root root  4096 Mar  6 01:34 proc
+dr-xr-x---  2 root root  4096 Mar  6 01:36 root
+drwxr-xr-x 11 root root  4096 Mar  6 01:36 run
+lrwxrwxrwx  1 root root     8 Mar  6 01:34 sbin -> usr/sbin
+drwxr-xr-x  2 root root  4096 Apr 11  2018 srv
+drwxr-xr-x  2 root root  4096 Mar  6 01:34 sys
+drwxrwxrwt  7 root root  4096 Mar  6 01:36 tmp
+drwxr-xr-x 13 root root  4096 Mar  6 01:34 usr
+drwxr-xr-x 18 root root  4096 Mar  6 01:34 var
+
+# 这是第一个 RUN 层，安装 nginx 
+# ls -l /var/lib/docker/overlay2/8db3efe8fbecdacf462e103bfd88f086898aaad83dae0de12931575e58817dd8/diff
+total 20
+drwxr-xr-x 9 root root 4096 May 14 23:55 etc
+drwxr-xr-x 2 root root 4096 May 14 23:55 run
+drwxrwxrwt 2 root root 4096 May 14 23:55 tmp
+drwxr-xr-x 7 root root 4096 Mar  6 01:34 usr
+drwxr-xr-x 6 root root 4096 Mar  6 01:34 var
+
+# 查看 nginx 版本
+# /var/lib/docker/overlay2/8db3efe8fbecdacf462e103bfd88f086898aaad83dae0de12931575e58817dd8/diff/usr/sbin/nginx  -v
+nginx version: nginx/1.12.2
+
+# 这是第二个 RUN 层，做了将日志导进行了重定向的操作，在镜像的 UpperDir
+# ls -l /var/lib/docker/overlay2/a31bc744ad4a2f3a15e0d267f5b58ea270e270ae639cf937ba3e5e92bdb2cd13/diff/var/log/nginx/
+total 0
+lrwxrwxrwx 1 root root 11 May 14 23:55 access.log -> /dev/stdout
+lrwxrwxrwx 1 root root 11 May 14 23:55 error.log -> /dev/stderr
+
+# 运行容器之后查看
+# docker run  -d --rm --name=nginx-test mynginx:latest
+# docker inspect nginx-test --format '{{ json .GraphDriver }}'|jq
+{
+  "Data": {
+    "LowerDir": "/var/lib/docker/overlay2/e8d3309efda57ebf17a6339b328b09ad7663692a51e37c0f6a6ce0e154ed3304-init/diff:/var/lib/docker/overlay2/a31bc744ad4a2f3a15e0d267f5b58ea270e270ae639cf937ba3e5e92bdb2cd13/diff:/var/lib/docker/overlay2/8db3efe8fbecdacf462e103bfd88f086898aaad83dae0de12931575e58817dd8/diff:/var/lib/docker/overlay2/7087a79470ba2efd8dc9ccc25b9f3e5afa2c78bfb350c7db65a430e007699802/diff",
+    "MergedDir": "/var/lib/docker/overlay2/e8d3309efda57ebf17a6339b328b09ad7663692a51e37c0f6a6ce0e154ed3304/merged",
+    "UpperDir": "/var/lib/docker/overlay2/e8d3309efda57ebf17a6339b328b09ad7663692a51e37c0f6a6ce0e154ed3304/diff",
+    "WorkDir": "/var/lib/docker/overlay2/e8d3309efda57ebf17a6339b328b09ad7663692a51e37c0f6a6ce0e154ed3304/work"
+  },
+  "Name": "overlay2"
+}
+# lowerdir 层中有三个目录和镜像层的相同，我们看一下唯一不同的一个，其中存放的是重启启动时分配的一些元数据
+# ls -l /var/lib/docker/overlay2/e8d3309efda57ebf17a6339b328b09ad7663692a51e37c0f6a6ce0e154ed3304-init/diff/etc/
+total 0
+-rwxr-xr-x 1 root root  0 May 15 23:52 hostname
+-rwxr-xr-x 1 root root  0 May 15 23:52 hosts
+lrwxrwxrwx 1 root root 12 May 15 23:52 mtab -> /proc/mounts
+-rwxr-xr-x 1 root root  0 May 15 23:52 resolv.conf
+
+# 我们看一下 upperdir 中的一些信息，下面是 nginx 启动后的 pid 文件
+# cat /var/lib/docker/overlay2/e8d3309efda57ebf17a6339b328b09ad7663692a51e37c0f6a6ce0e154ed3304/diff/run/nginx.pid
+1
+```
 
